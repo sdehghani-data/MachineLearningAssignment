@@ -1,0 +1,112 @@
+---
+title: "Machine Learning Assignment"
+author: "Sanaz Dehghani"
+date: "6/10/2021"
+output: html_document
+---
+##Summary
+One thing that people regularly do is quantify how  much of a particular activity they do, but they rarely quantify how well they do it. In this Report, Our goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants and predicting the manner in which they did the exercise.To achieve this, we tailor a best model for prediction and predict classe parameter for 20 given sample.
+
+##Geting and Cleaning Data
+first we load required libraries.
+```{r echo = TRUE}
+library(caret)
+library(dplyr)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+library(e1071)
+library(corrplot)
+library(gbm)
+```
+
+We download and store training and testing data.
+```{r echo = TRUE}
+trainingdata<-read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"),header=TRUE)
+str(trainingdata)
+```
+```{r echo = TRUE}
+testingdata<-read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"),header=TRUE)
+dim(testingdata)
+```
+As we see in a summary, we have lots of empty and missed values so we remove columns which have many of them and dont add values for prediction in training data and test data.
+```{r echo = TRUE}
+removedcols <- which(colSums(is.na(trainingdata) |trainingdata=="")>0.9*dim(trainingdata)[1]) 
+cleantrainingdata <- trainingdata[,-removedcols]
+cleantrainingdata <- cleantrainingdata[,-c(1:7)]
+dim(cleantrainingdata)
+```
+```{r echo = TRUE}
+removedcols <- which(colSums(is.na(testingdata)|testingdata=="")>0.9*dim(testingdata)[1]) 
+cleantestdata <- testingdata[,-removedcols]
+cleantestdata <- cleantestdata[,-c(1:7)]
+dim(cleantestdata)
+```
+we also remove columns which has low variant variables from training data set.
+```{r echo = TRUE}
+NZV <- nearZeroVar(cleantrainingdata)
+rm(NZV)
+
+```
+
+
+# Partitioning Training Data
+We set a seed for reproduce ability.
+```{r echo = TRUE}
+set.seed(105137)
+```
+now we partition our training data to 60% as training data and 40% for test.
+```{r echo = TRUE}
+train <- createDataPartition(cleantrainingdata$classe, p = 0.6, list = FALSE)
+traindata <-cleantrainingdata[train, ]
+testdata <-cleantrainingdata[-train, ]
+dim(traindata)
+```
+##Explatory Data Analysis
+we draw Correlation Matrix of Columns in the Training Data set.
+```{r echo = TRUE}
+corrplot(cor(traindata[, -length(names(traindata))]), method = "color", tl.cex = 0.5)
+```
+we see variables with high correlation (near 1 and -1) with dark blue and red.
+## Prediction
+We use Random Forest, Decision Trees and Generalized Boosted Model for prediction model selection. we also use cross validation method for improving efficiency of models with 5 folds.
+#Random Forests
+```{r echo = TRUE}
+fitcontrol<-trainControl(method = "cv", number=5)
+RF <- train(classe ~ ., data = traindata, method = "rf", trControl =fitcontrol, verbose=FALSE)
+RFpredict <- predict(RF,newdata=testdata)
+RFco <- confusionMatrix(testdata$classe,RFpredict)
+RFco
+```
+The accuracy of predicting with 2 parameters is 0.98 so random forest tree seems to be acceptable predicting model. we also examined RF with test data.
+
+#Decision Tree
+```{r echo = TRUE}
+fitcontrol<-trainControl(method = "cv", number=5)
+DT <- train(classe ~ ., data = traindata, method = "rpart", trControl =fitcontrol)
+DTpredict <- predict(DT,newdata=testdata)
+DTco<-confusionMatrix(testdata$classe,DTpredict)
+DTco
+```
+As we see the accuracy of decision tree model is low and not acceptable.
+
+
+```{r echo = TRUE}
+fitcontrol<-trainControl(method = "cv", number=5)
+GBM <- train(classe~., data=traindata, method="gbm", trControl=fitcontrol)
+GBMpredict <- predict(GBM,newdata=testdata)
+GBMco <- confusionMatrix(testdata$classe,GBMpredict)
+GBMco
+```
+##Using the selected model for Prediction
+In above we selected Random Forest for predicting model due to its accuracy now we predict classe values for samples.
+
+```{r echo = TRUE}
+prediction <- predict(RF,newdata=cleantestdata)
+prediction
+```
+
+
+
